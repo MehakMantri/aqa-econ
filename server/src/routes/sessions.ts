@@ -145,22 +145,32 @@ router.post("/answer", requireAuth, async (req: any, res) => {
 });
 
 router.post("/finish", requireAuth, (req: any, res) => {
-  const userId = req.user.id;
-  const { session_id } = req.body || {};
-  if (!session_id)
-    return res.status(400).json({ error: "session_id required" });
+  try {
+    const userId = req.user.id;
+    const { session_id } = req.body || {};
+    if (!session_id) {
+      return res.status(400).json({ error: "session_id required" });
+    }
 
-  const s = db
-    .prepare("SELECT * FROM sessions WHERE id = ? AND user_id = ?")
-    .get(session_id, userId);
-  if (!s) return res.status(404).json({ error: "Session not found" });
+    const s = db
+      .prepare("SELECT * FROM sessions WHERE id = ? AND user_id = ?")
+      .get(session_id, userId);
 
-  const score = s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0;
-  db.prepare(
-    'UPDATE sessions SET score = ?, finished_at = datetime("now") WHERE id = ?'
-  ).run(score, session_id);
+    if (!s) {
+      return res.status(404).json({ error: "Session not found" });
+    }
 
-  return res.json({ score });
+    const score = s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0;
+
+    db.prepare(
+      "UPDATE sessions SET score = ?, finished_at = datetime('now') WHERE id = ?"
+    ).run(score, session_id);
+
+    return res.json({ score, finished_at: new Date().toISOString() });
+  } catch (err: any) {
+    console.error("Error finishing session:", err);
+    return res.status(500).json({ error: "Failed to finish session" });
+  }
 });
 
 export default router;
